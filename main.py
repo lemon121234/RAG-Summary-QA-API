@@ -16,6 +16,8 @@ from datetime import datetime
 import json
 import math
 import re
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
 # ============ 配置 ============
 
@@ -217,6 +219,73 @@ async def get_embeddings(texts: List[str]) -> List[List[float]]:
     return embeddings
 
 
+async def fetch_webpage_content(url: str) -> Dict[str, str]:
+    """抓取網頁內容並提取文字"""
+    try:
+        # 驗證 URL
+        parsed = urlparse(url)
+        if not parsed.scheme:
+            url = "https://" + url
+        
+        # 設置請求頭，模擬瀏覽器
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            
+            # 解析 HTML
+            soup = BeautifulSoup(response.text, 'lxml')
+            
+            # 移除 script 和 style 標籤
+            for script in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                script.decompose()
+            
+            # 提取標題
+            title = ""
+            if soup.title:
+                title = soup.title.get_text().strip()
+            elif soup.find("h1"):
+                title = soup.find("h1").get_text().strip()
+            
+            # 提取主要內容
+            # 優先查找 article, main, 或包含大量文字的 div
+            content = ""
+            article = soup.find("article") or soup.find("main") or soup.find("div", class_=re.compile("content|article|post|entry"))
+            
+            if article:
+                content = article.get_text(separator="\n", strip=True)
+            else:
+                # 如果沒有找到特定標籤，提取所有段落
+                paragraphs = soup.find_all("p")
+                content = "\n".join([p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)])
+            
+            # 如果內容太短，嘗試提取 body
+            if len(content) < 100:
+                body = soup.find("body")
+                if body:
+                    content = body.get_text(separator="\n", strip=True)
+            
+            # 清理內容：移除多餘空白
+            content = re.sub(r'\n\s*\n', '\n\n', content)
+            content = content.strip()
+            
+            return {
+                "title": title,
+                "content": content,
+                "url": url
+            }
+            
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="網頁載入超時，請稍後再試")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=502, detail=f"無法訪問網頁: HTTP {e.response.status_code}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"抓取網頁失敗: {str(e)}")
+
+
 async def call_ollama(prompt: str, system_prompt: str = "") -> str:
     """調用 Ollama LLM"""
     try:
@@ -246,6 +315,8 @@ async def call_ollama(prompt: str, system_prompt: str = "") -> str:
         raise HTTPException(status_code=504, detail="Ollama 回應超時")
 
 
+
+
 # ============ 請求/回應模型 ============
 
 class DocumentUploadRequest(BaseModel):
@@ -265,6 +336,18 @@ class SummaryRequest(BaseModel):
     language: str = Field(default="zh-TW", description="輸出語言")
 
 
+class URLSummaryRequest(BaseModel):
+    url: List[str] = Field(..., description="要摘要的網址（可傳多個）", min_length=1)
+    max_length: int = Field(default=200, description="摘要最大長度", ge=10, le=1000)
+    language: str = Field(default="zh-TW", description="輸出語言")
+
+
+class URLQARequest(BaseModel):
+    url: str = Field(..., description="要問答的網址", min_length=5)
+    question: str = Field(..., description="要回答的問題", min_length=3)
+    language: str = Field(default="zh-TW", description="輸出語言")
+
+
 class DocumentResponse(BaseModel):
     document_id: str
     title: str
@@ -280,19 +363,28 @@ class RAGQueryResponse(BaseModel):
     confidence: str
 
 
+class URLQAResponse(BaseModel):
+    url: str
+    question: str
+    answer: str
+    title: str
+
+
 # ============ API 端點 ============
 
 @app.get("/")
 async def root():
     """API 根端點"""
     return {
-        "message": "🚀 歡迎使用 RAG 摘要與QA API",
-        "version": "2.0.0",
+        "message": "Welcome to RAG Summary & QA API",
+        "version": "2.2.0",
         "features": [
-            "📚 RAG 檢索增強生成",
-            "🔍 多文檔知識庫",
-            "🎯 向量語義搜索",
-            "📝 智能摘要生成"
+            "RAG - Retrieval Augmented Generation",
+            "Multi-document Knowledge Base",
+            "Vector Semantic Search",
+            "Smart Summarization",
+            "URL Content Summarization",
+            "URL Question Answering"
         ],
         "stats": {
             "documents": vector_store.count_documents(),
@@ -301,12 +393,12 @@ async def root():
             "llm_model": OLLAMA_MODEL
         },
         "endpoints": {
-            "上傳文檔": "POST /api/documents",
-            "列出文檔": "GET /api/documents",
-            "RAG 問答": "POST /api/rag/query",
-            "語義搜索": "POST /api/rag/search",
-            "生成摘要": "POST /api/summary",
-            "API 文檔": "/docs"
+            "documents": "POST /api/documents",
+            "rag_query": "POST /api/rag/query",
+            "summary": "POST /api/summary",
+            "url_summary": "POST /api/url/summary",
+            "url_qa": "POST /api/url/qa",
+            "docs": "/docs"
         }
     }
 
@@ -436,36 +528,6 @@ async def clear_all_documents():
 
 # ============ RAG 功能 ============
 
-@app.post("/api/rag/search")
-async def semantic_search(request: RAGQueryRequest):
-    """
-    🔍 語義搜索
-    
-    在知識庫中搜索與問題最相關的文檔片段。
-    """
-    if vector_store.count_chunks() == 0:
-        raise HTTPException(status_code=400, detail="知識庫為空，請先上傳文檔")
-    
-    # 獲取問題的嵌入向量
-    query_embedding = await get_embedding(request.question)
-    
-    # 搜索
-    results = vector_store.search(query_embedding, request.top_k)
-    
-    return {
-        "question": request.question,
-        "results_count": len(results),
-        "sources": [
-            {
-                "document_title": r["title"],
-                "content": r["content"],
-                "relevance_score": round(r["score"], 3)
-            }
-            for r in results
-        ]
-    }
-
-
 @app.post("/api/rag/query", response_model=RAGQueryResponse)
 async def rag_query(request: RAGQueryRequest):
     """
@@ -592,18 +654,166 @@ async def create_summary(request: SummaryRequest):
     }
 
 
+@app.post("/api/url/summary")
+async def url_summary(request: URLSummaryRequest):
+    """
+    🌐 網址摘要（支援多個網址）
+    
+    輸入一個或多個網址，系統會自動抓取網頁內容並生成摘要。
+    可以同時處理多個網址，返回每個網址的摘要。
+    """
+    results = []
+    errors = []
+    
+    # 語言設定
+    language_map = {
+        "zh-TW": "繁體中文",
+        "zh-CN": "简体中文",
+        "en": "English"
+    }
+    target_lang = language_map.get(request.language, "繁體中文")
+    
+    system_prompt = "你是一個專業的網頁內容摘要助手。"
+    
+    # 處理每個網址
+    for url in request.url:
+        try:
+            # 抓取網頁內容
+            webpage = await fetch_webpage_content(url)
+            
+            if not webpage["content"] or len(webpage["content"]) < 50:
+                errors.append({
+                    "url": url,
+                    "error": "無法從網頁中提取足夠的文字內容，可能是網頁結構特殊或需要登入"
+                })
+                continue
+            
+            # 如果內容太長，先截取前 5000 字
+            content = webpage["content"]
+            if len(content) > 5000:
+                content = content[:5000] + "..."
+            
+            prompt = f"""請為以下網頁內容生成摘要。
+
+網頁標題：{webpage["title"]}
+
+要求：
+1. 摘要不超過 {request.max_length} 字
+2. 使用 {target_lang}
+3. 保留關鍵信息和主要觀點
+4. 摘要要簡潔、有條理
+
+網頁內容：
+{content}
+
+請直接輸出摘要。"""
+            
+            summary = await call_ollama(prompt, system_prompt)
+            
+            results.append({
+                "url": url,
+                "title": webpage["title"],
+                "original_length": len(webpage["content"]),
+                "summary": summary,
+                "summary_length": len(summary),
+                "status": "success"
+            })
+            
+        except HTTPException as e:
+            errors.append({
+                "url": url,
+                "error": e.detail
+            })
+        except Exception as e:
+            errors.append({
+                "url": url,
+                "error": f"處理失敗: {str(e)}"
+            })
+    
+    # 如果所有網址都失敗
+    if len(results) == 0 and len(errors) > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"所有網址處理失敗: {errors[0]['error']}"
+        )
+    
+    return {
+        "total_urls": len(request.url),
+        "success_count": len(results),
+        "error_count": len(errors),
+        "results": results,
+        "errors": errors if errors else None,
+        "created_at": datetime.now().isoformat()
+    }
+
+
+@app.post("/api/url/qa", response_model=URLQAResponse)
+async def url_qa(request: URLQARequest):
+    """
+    ❓ 網址問答
+    
+    輸入網址和問題，系統會自動抓取網頁內容並根據內容回答問題。
+    """
+    # 抓取網頁內容
+    webpage = await fetch_webpage_content(request.url)
+    
+    if not webpage["content"] or len(webpage["content"]) < 50:
+        raise HTTPException(
+            status_code=400,
+            detail="無法從網頁中提取足夠的文字內容，可能是網頁結構特殊或需要登入"
+        )
+    
+    # 語言設定
+    language_map = {
+        "zh-TW": "繁體中文",
+        "zh-CN": "简体中文",
+        "en": "English"
+    }
+    target_lang = language_map.get(request.language, "繁體中文")
+    
+    # 如果內容太長，先截取前 8000 字（問答需要更多上下文）
+    content = webpage["content"]
+    if len(content) > 8000:
+        content = content[:8000] + "..."
+    
+    system_prompt = """你是一個專業的問答助手。請根據提供的網頁內容回答問題。
+規則：
+1. 只根據網頁內容中的信息回答
+2. 如果內容中沒有相關信息，請明確說明
+3. 回答要準確、有條理
+4. 可以適當引用網頁中的內容"""
+    
+    prompt = f"""請根據以下網頁內容回答問題。
+
+網頁標題：{webpage["title"]}
+
+網頁內容：
+{content}
+
+問題：{request.question}
+
+請用{target_lang}回答。如果網頁內容中沒有相關信息，請明確說明。"""
+    
+    answer = await call_ollama(prompt, system_prompt)
+    
+    return URLQAResponse(
+        url=request.url,
+        question=request.question,
+        answer=answer,
+        title=webpage["title"]
+    )
+
+
 # ============ 啟動 ============
 
 if __name__ == "__main__":
     import uvicorn
     
     print("=" * 60)
-    print("RAG Summary & QA API v2.0")
+    print("RAG Summary & QA API v2.2")
     print("=" * 60)
     print(f"LLM Model: {OLLAMA_MODEL}")
     print(f"Embedding Model: {EMBEDDING_MODEL}")
-    print(f"Chunk Size: {CHUNK_SIZE}")
-    print(f"Top K: {TOP_K}")
     print("=" * 60)
     print("Please ensure:")
     print(f"  1. Ollama is running: ollama serve")
