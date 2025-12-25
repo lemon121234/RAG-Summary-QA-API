@@ -31,3 +31,9 @@ dist/
 build/
 *.egg-info/
 
+# Personal notes (not for GitHub)
+面試講解指南.md
+RAG簡單解釋.md
+結構比較分析.md
+重構說明.md
+
