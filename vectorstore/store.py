@@ -136,3 +136,6 @@ class VectorStore:
 # 全局向量存儲實例
 vector_store = VectorStore()
 
+
+
+

@@ -249,6 +249,33 @@ curl http://localhost:8000/health
 - 嵌入模型狀態
 - 文檔和片段數量
 
+## 🧪 穩定性測試與 Debug
+
+本專案包含完整的穩定性測試和 debug logging 系統。
+
+### 穩定性測試
+
+執行穩定性測試：
+```bash
+python tests/stability_test.py
+```
+
+測試內容：
+- **Embedding 一致性測試**：驗證同一文本多次生成 embedding 是否相同
+- **Chunking 一致性測試**：驗證同一文本多次切割是否產生相同的 chunks
+- **Retrieval 一致性測試**：驗證同一 query 多次檢索結果是否相同
+
+詳細說明請參考 [README_穩定性與Debug.md](README_穩定性與Debug.md)
+
+### Debug Logging
+
+每次 RAG 查詢都會自動記錄到：
+- 控制台輸出
+- `rag_debug.log` 文本日誌
+- `debug_logs/session_*.json` 結構化記錄
+
+詳細說明請參考 [README_穩定性與Debug.md](README_穩定性與Debug.md)
+
 ## 📄 授權
 
 MIT License

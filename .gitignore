@@ -36,4 +36,15 @@ build/
 RAG簡單解釋.md
 結構比較分析.md
 重構說明.md
+履歷優化建議.md
+履歷重點總結.md
+強調點代碼位置.md
+強調點代碼位置_2048_AI預測.md
+
+# Debug logs
+debug_logs/
+*.log
+rag_debug.log
+2048_debug.log
+ai_predict_debug.log
 

@@ -14,3 +14,6 @@ CHUNK_SIZE = 500  # 每個文檔片段的字數
 CHUNK_OVERLAP = 50  # 片段重疊字數
 TOP_K = 5  # 檢索返回的片段數量
 
+
+
+

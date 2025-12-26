@@ -8,6 +8,7 @@ from models import RAGQueryRequest, RAGQueryResponse
 from vectorstore import vector_store
 from retriever import search_similar_chunks
 from llm import rag_qa
+from utils.debug_logger import rag_debug_logger
 
 router = APIRouter(prefix="/api/rag", tags=["RAG 問答"])
 
@@ -28,6 +29,13 @@ async def rag_query(request: RAGQueryRequest):
     # 搜索相關片段
     results = await search_similar_chunks(request.question, request.top_k)
     
+    # 記錄檢索過程（Debug）
+    rag_debug_logger.log_retrieval(
+        query=request.question,
+        retrieved_chunks=results,
+        top_k=request.top_k
+    )
+    
     # 準備來源信息
     sources = []
     for r in results:
@@ -39,6 +47,15 @@ async def rag_query(request: RAGQueryRequest):
     
     # 執行 RAG 問答
     answer, confidence = await rag_qa(request.question, results, request.language)
+    
+    # 記錄完整的 RAG 會話（Debug）
+    rag_debug_logger.log_full_rag_session(
+        question=request.question,
+        retrieved_chunks=results,
+        answer=answer,
+        confidence=confidence,
+        top_k=request.top_k
+    )
     
     return RAGQueryResponse(
         question=request.question,
