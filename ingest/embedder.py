@@ -67,3 +67,6 @@ async def get_embeddings(texts: List[str]) -> List[List[float]]:
 
 
 
+
+
+

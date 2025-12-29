@@ -31,20 +31,41 @@ dist/
 build/
 *.egg-info/
 
-# Personal notes (not for GitHub)
-面試講解指南.md
-RAG簡單解釋.md
-結構比較分析.md
-重構說明.md
-履歷優化建議.md
-履歷重點總結.md
-強調點代碼位置.md
-強調點代碼位置_2048_AI預測.md
+# Personal notes and interview preparation (not for GitHub)
+private/
+面試*.md
+履歷*.md
+PPT*.md
+*指南.md
+*小抄.md
+*解釋.md
+*分析.md
+*說明.md
+強調點*.md
+結構*.md
+重構*.md
+GitHub*.md
+更新*.md
+
+# Unrelated projects (not for GitHub)
+game_2048/
+ai_predict/
+main_2048.py
+main_ai_predict.py
+README_2048.md
+README_AI_Predict.md
+requirements_2048.txt
+requirements_ai.txt
 
 # Debug logs
 debug_logs/
-*.log
 rag_debug.log
 2048_debug.log
 ai_predict_debug.log
 
+# Test and utility scripts (keep only RAG-related)
+test_smart_contract.py
+check_documents.py
+debug_retrieval.py
+reset_and_upload.py
+update_repos.ps1

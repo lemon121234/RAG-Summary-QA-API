@@ -4,12 +4,12 @@
 
 ## 🎯 功能特點
 
-- 🤖 **RAG 問答**: 使用檢索增強生成技術，根據知識庫回答問題
-- 📚 **多文檔管理**: 上傳、查詢、刪除文檔，自動建立向量索引
-- 🔍 **向量語義搜索**: 使用嵌入向量進行相似度搜索
-- 📝 **智能摘要**: 文檔摘要和 URL 內容摘要
-- 🌐 **URL 問答**: 直接對網頁內容進行問答
-- 🌍 **多語言支持**: 支持繁體中文、簡體中文、英文
+- **RAG 問答**: 使用檢索增強生成技術，根據知識庫回答問題
+- **多文檔管理**: 上傳、查詢、刪除文檔，自動建立向量索引
+- **向量語義搜索**: 使用嵌入向量進行相似度搜索
+- **智能摘要**: 文檔摘要和 URL 內容摘要
+- **URL 問答**: 直接對網頁內容進行問答
+- **多語言支持**: 支持繁體中文、簡體中文、英文
 
 ## 📁 專案結構
 
@@ -249,9 +249,9 @@ curl http://localhost:8000/health
 - 嵌入模型狀態
 - 文檔和片段數量
 
-## 🧪 穩定性測試與 Debug
+## 🧪 測試與 Debug
 
-本專案包含完整的穩定性測試和 debug logging 系統。
+本專案包含完整的測試套件和 debug logging 系統。
 
 ### 穩定性測試
 
@@ -266,6 +266,31 @@ python tests/stability_test.py
 - **Retrieval 一致性測試**：驗證同一 query 多次檢索結果是否相同
 
 詳細說明請參考 [README_穩定性與Debug.md](README_穩定性與Debug.md)
+
+### 功能測試腳本
+
+專案提供了多個測試腳本，位於 `scripts/` 目錄：
+
+- `test_rag_queries.py` - 測試 RAG 問答功能
+- `test_retrieval.py` - 測試檢索功能
+- `test_upload_single.py` - 測試單個文檔上傳
+- `upload_test_documents.py` - 批量上傳測試文檔
+- `upload_from_json.py` - 從 JSON 批量上傳
+- `test_questions.md` - 測試問題集
+
+使用範例：
+```bash
+# 測試 RAG 問答
+python scripts/test_rag_queries.py
+
+# 測試檢索功能
+python scripts/test_retrieval.py
+
+# 批量上傳測試文檔
+python scripts/upload_test_documents.py
+```
+
+詳細說明請參考 [scripts/README.md](scripts/README.md)
 
 ### Debug Logging
 
